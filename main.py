@@ -1,11 +1,18 @@
-from typing import Union
+from typing import Union, Tuple
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette_csrf.middleware import CSRFMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
-def get_app() -> FastAPI:
+def rate_limit_handler(request: Request, exc: Exception) -> Response:
+    assert isinstance(exc, RateLimitExceeded)
+    return _rate_limit_exceeded_handler(request, exc)
+
+def get_app() -> Tuple[FastAPI, Limiter]:
     middleware = [
         Middleware(
             GZipMiddleware,
@@ -22,17 +29,21 @@ def get_app() -> FastAPI:
             secret="__CHANGE_ME__"
         )
     ]
+    limiter = Limiter(key_func=get_remote_address)
     app = FastAPI(
-        root_path=Configuration,
-        middleware=middleware
+        # root_path=Configuration,
+        middleware=middleware,
     )
-    return app
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
+    return app, limiter
 
-app = get_app()
+app, limiter = get_app()
 
 
 @app.get("/")
-def read_root():
+@limiter.limit("1/minute")
+def read_root(request: Request):
     return {"Hello": "World"}
 
 
