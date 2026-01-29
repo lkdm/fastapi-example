@@ -7,7 +7,7 @@ from starlette_csrf.middleware import CSRFMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from config import Configuration
+from config import config
 
 def rate_limit_handler(request: Request, exc: Exception) -> Response:
     assert isinstance(exc, RateLimitExceeded)
@@ -32,7 +32,7 @@ def get_app() -> Tuple[FastAPI, Limiter]:
     ]
     limiter = Limiter(key_func=get_remote_address)
     app = FastAPI(
-        root_path=Configuration.API_V1_STR,
+        root_path=config.API_V1_STR,
         middleware=middleware,
     )
     app.state.limiter = limiter
@@ -43,7 +43,7 @@ app, limiter = get_app()
 
 
 @app.get("/")
-@limiter.limit("1/minute")
+@limiter.limit("30/minute")
 def read_root(request: Request):
     return {"Hello": "World"}
 
